@@ -1,0 +1,9 @@
+Switching from the 2017 version to the 2021 version for assignment 2.
+The 2017 version was hard to use in 2022, things just didn’t work anymore. 
+
+A quick glance as the 2021 version of the jupyter notebooks suggests that the content is very similar to the 2017 version, but now designed to work with colab which can apparently give me a working GPU solution
+
+I will have to update my “Assignment 1” from 2017 to the 2021 format that is compatible with Colab, assuming that the exercise structure is similar
+
+https://cs231n.github.io/assignments2021/assignment2/
+

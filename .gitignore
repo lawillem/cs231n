@@ -1,0 +1,7 @@
+*.pyc
+*.npz
+assignment2/cs231n/__pycache__/
+assignment2/cs231n/datasets/cifar-10-batches-py/
+
+
+

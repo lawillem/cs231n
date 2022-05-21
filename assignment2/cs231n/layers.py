@@ -216,7 +216,30 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #algorithm 1, p3 of paper
+        batch_mean    = 1./N * np.sum(x, axis=0) #vector of length D
+        x_mean_zero   = x-batch_mean
+
+        batch_var     = 1./N * np.sum(x_mean_zero**2, axis=0) #vector of length D
+        x_var_one     = x_mean_zero/np.sqrt(batch_var + eps)
+
+        #update running mean and variance
+        running_mean  = momentum * running_mean + (1 - momentum) * batch_mean
+        running_var   = momentum * running_var + (1 - momentum) * batch_var
+
+        #prep output
+        out           = gamma*x_var_one+beta #scale and shift step of algorithm 1
+
+        #cache will contain helpful variables for backprop
+        #Using intermediate variable names 
+        cache         = { 'mu':batch_mean,
+                          'v':batch_var,
+                          's':np.sqrt(batch_var + eps),
+                          'x':x,
+                          'y':x_var_one,
+                          'gamma':gamma,
+                          'eps':eps
+                          }
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -231,7 +254,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #equation 12, algorithm 2
+        out           = gamma * (x-running_mean)/np.sqrt(running_var + eps) + beta
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -272,7 +296,33 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    #In this implementation I will just explicitly compute the chain rule. 
+    #I am not trying to simplify the expressions
+
+    N, D = dout.shape
+
+    #z = gamma*y + beta, (gamma and beta are (D,) vectors and * represents column multiplication here. Not mat-vec)
+    dldz  = dout                                                      #(N,D)
+    dldb  = np.sum(dldz, axis=0)                                      #(D,)
+    dldg  = np.sum(cache['y']*dldz, axis=0)                           #(D,)
+
+    dldy  = dldz*cache['gamma']                                       #(N,D)
+    dlds  = np.sum(-1.0*cache['s']**-2*(cache['x']-cache['mu'])*dldy, axis=0)       #(D,)
+    dldv  = 0.5*(cache['v']+cache['eps'])**-0.5 * dlds                #(D,)
+    
+    #dldu = dvdu*dldv + dydu*dldy
+    dldu  = 1./N * -1* np.sum(2*(cache['x']-cache['mu']),axis=0) * dldv
+    dldu += -1./cache['s']*np.sum(dldy,axis=0)                        #(D,)
+
+    #dldx = dvdx*dldv + dudx*dldu + dydx*dldy
+    dldx  = 1./N * 2 * (cache['x'] -cache['mu']) * dldv 
+    dldx += 1./N*dldu
+    dldx += 1./cache['s']*dldy #This branch is not displayed in figure of notebook
+
+    #prep for out
+    dx      = dldx
+    dgamma  = dldg
+    dbeta   = dldb
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -306,7 +356,45 @@ def batchnorm_backward_alt(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    #for batchnorm we sum over the rows
+    #when we want to reuse this function for layer normalization, we transpose dout,
+    #but we still want to sum over the original activations (which are now cols)
+    sumaxis = cache.get('sumaxis', 0)
+
+    N, D = dout.shape
+
+    dldz  = dout                                                      #(N,D)
+    dldb  = np.sum(dldz, axis=sumaxis)                                #(D,)
+    dldg  = np.sum(cache['y']*dldz, axis=sumaxis)                     #(D,)
+
+    #now work to dx
+    dldy  = dldz*cache['gamma']  
+
+    #Derivation for a single dimension
+    #since all dimensions are batch normalized independent
+    #of each other, this derivation naturally extends 
+    #to all dimensions D
+
+    #I derived dy_i / dx_j, where the subscripts refer to 
+    #sample numbers and y and x are for the same dimension
+    #This expression simplifies A LOT because dsigma/dx_j = 0 !
+
+    #dy_i / dx_j = kron_{i,j}/sigma - 1/sigma*du/dx_k - (x_i - mu)*d(1/sigma)/dx_j
+
+    #my final expression for dy_i / dx_j = s**-1*(kron_{i,j}-1/N) - (x_i-mu)(x_j-mu)/(N*s**3) [a lot of terms cancelled]
+    #Then dldx = sum_i{dy_i/dx_j * dL/dy_i} (again, indices are for one dimension [i.e. col] of the matrix. But same operation on each col)
+
+    #Could maybe have simplified expression more, but not spending more time on this
+
+    sum_dldy = np.sum(dldy, axis=0)
+    sum_xdldy= np.sum(cache['x']*dldy, axis=0)
+    dldx  = 1./cache['s'] * dldy - 1./(N*cache['s'])*sum_dldy - (cache['x']-cache['mu'])*(sum_xdldy-cache['mu']*sum_dldy)/(N*cache['s']**3)
+          
+
+    #prep for out
+    dx      = dldx
+    dgamma  = dldg
+    dbeta   = dldb
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -351,8 +439,14 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N,D = x.shape
+    x = x.transpose()
 
+    #in layer normalization we still apply gamma / beta to each activation individually.
+    #gamma/beta are NOT used to scale sample by sample, so same behavior as original batch normalization
+
+    y, cache = batchnorm_forward(x, gamma.reshape(D,1), beta.reshape(D,1), {'mode':'train'})
+    out = y.transpose()
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -385,7 +479,9 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    cache['sumaxis'] = 1
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout.T, cache)
+    dx = dx.transpose()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

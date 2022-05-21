@@ -88,6 +88,18 @@ class FullyConnectedNet(object):
           self.params['W%i'%(i+1)] = weight_scale*np.random.randn(in_dim,out_dim)
           self.params['b%i'%(i+1)] = np.zeros(out_dim)
 
+        for i in range(self.num_layers-1):
+          in_dim = all_dims[i]
+          out_dim = all_dims[i+1]
+                    
+          #if using batch normalization (last layer does not use, so num_layer-1)
+          #TODO: Exercise does not seem to be designed for it, but should i disable bias 'b' when using batch norm? 
+          #Bias has no impact, insensitive parameter...
+          if self.normalization == "batchnorm" or self.normalization == "layernorm": 
+            #each out dimension has its own scaling gamma/beta
+            self.params['gamma%i'%(i+1)] = np.ones(out_dim)
+            self.params['beta%i'%(i+1)]  = np.zeros(out_dim)          
+
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -171,7 +183,19 @@ class FullyConnectedNet(object):
           cache['indata_layer_%i'%(i+1)] = data
 
           #do Relu(h*W + b) to compute input for next layer (until finish)
-          data = np.maximum(0, np.matmul(data,W) + b)
+          x = np.matmul(data,W) + b
+          if self.normalization == "batchnorm":
+            gamma = self.params['gamma%i'%(i+1)]
+            beta  = self.params['beta%i'%(i+1)]
+            bn_param = self.bn_params[i]
+            x, cache['bn_cache%i'%(i+1)] = batchnorm_forward(x, gamma, beta, bn_param)
+
+          if self.normalization == "layernorm":
+            gamma = self.params['gamma%i'%(i+1)]
+            beta  = self.params['beta%i'%(i+1)]
+            x, cache['ln_cache%i'%(i+1)] = layernorm_forward(x, gamma, beta, {})
+
+          data = np.maximum(0, x)
 
         #output from the last dense layer without ReLu
         WL = self.params['W%i'%self.num_layers]
@@ -259,6 +283,16 @@ class FullyConnectedNet(object):
           #By using the output of the ReLu (i.e. data_prev) we do not have to cache the input to the ReLu each iter
           grad_prev[data_prev==0] = 0.0
 
+          #move through the normalization layer, if present
+          if self.normalization == "batchnorm":
+            bn_cache = cache['bn_cache%i'%(i+1)]
+            grad_prev, grads['gamma%i'%(i+1)], grads['beta%i'%(i+1)] = batchnorm_backward_alt(grad_prev, bn_cache)
+
+          if self.normalization == "layernorm":
+            ln_cache = cache['ln_cache%i'%(i+1)]
+            grad_prev, grads['gamma%i'%(i+1)], grads['beta%i'%(i+1)] = layernorm_backward(grad_prev, ln_cache)
+
+
           #Same structure as gradients for bL and WL
           grads['b%i'%(i+1)] = np.matmul(i_n.transpose(), grad_prev).flatten()
           grads['W%i'%(i+1)] = np.matmul(data.transpose(),grad_prev)
@@ -274,6 +308,8 @@ class FullyConnectedNet(object):
         for i in reversed(range(self.num_layers)):                
           W = self.params['W%i'%(i+1)]
           b = self.params['b%i'%(i+1)]
+
+          #not regularizing batch norm parameters
 
           loss += 0.5*reg*(np.sum(W**2) + np.sum(b**2))
           grads['W%i'%(i+1)] += reg*W

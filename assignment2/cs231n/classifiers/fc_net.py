@@ -74,6 +74,14 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         
+        #some basic error checks
+        if dropout_keep_ratio > 1:
+          raise Exception("Probabilities larger than 100% make no sense")
+
+        if dropout_keep_ratio < 0:
+          raise Exception("Negative probabilities make no sense")
+
+
         all_dims = [input_dim] + hidden_dims + [num_classes]
         for i in range(self.num_layers):
           #shape of matrix W (in_dim, out_dim)
@@ -197,6 +205,9 @@ class FullyConnectedNet(object):
 
           data = np.maximum(0, x)
 
+          if self.use_dropout:
+            data, cache['drop_cache%i'%(i+1)] = dropout_forward(data, self.dropout_param)
+
         #output from the last dense layer without ReLu
         WL = self.params['W%i'%self.num_layers]
         bL = self.params['b%i'%self.num_layers]
@@ -275,6 +286,11 @@ class FullyConnectedNet(object):
 
           #grab the weights
           W = self.params['W%i'%(i+1)]
+
+          #The first operation we encounter is the dropout (if activated)
+          #Need to move gradient through this
+          if self.use_dropout:
+            grad_prev = dropout_backward(grad_prev, cache['drop_cache%i'%(i+1)])
 
           #gradient with respect to the input of the ReLu
           #the derivation says this is the gradient with respect to the output of the relu,

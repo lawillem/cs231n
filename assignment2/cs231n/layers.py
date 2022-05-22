@@ -527,7 +527,13 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #When using more than one training input (N > 1), 
+        #it is unclear if the training inputs should have the same mask applied.
+        #With the mask I designed below, EACH TRAINING INPUT WILL HAVE ITS OWN MASK
+        #and therefore works with its own set of zero'd out activations. 
+
+        mask = (np.random.rand(*x.shape) < p) / p # dropout mask. Notice /p so we don't have to *p during testing time!
+        out = x * mask
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -539,7 +545,9 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #don't need to do anything here during testing. 
+        #don't apply mask, and also don't correct for p (already done in training)
+        out = x
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -569,7 +577,7 @@ def dropout_backward(dout, cache):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        dx = dout * mask
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################

@@ -2,6 +2,7 @@
 *.npz
 assignment2/cs231n/__pycache__/
 assignment2/cs231n/datasets/cifar-10-batches-py/
+assignment1/cs231n/datasets/cifar-10-batches-py/
 
 
 

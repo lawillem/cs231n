@@ -621,7 +621,44 @@ def conv_forward_naive(x, w, b, conv_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N,C,H,W     = x.shape
+    F,C,HH,WW   = w.shape
+
+    #Get pad and stride. 
+    #Since integer, these will apparently be the same in the H and W direction
+
+    pad         = conv_param['pad'] 
+    stride      = conv_param['stride']
+
+    #output shape
+    h_out       = 1 + (H + 2 * pad - HH) / stride
+    w_out       = 1 + (W + 2 * pad - WW) / stride
+
+    #check if stride fits properly (no fractional numbers)
+    if h_out%1 > 0 or w_out%1 > 0:
+      raise Exception("filter does not fit properly")
+
+    h_out = int(h_out)
+    w_out = int(w_out)
+
+    #add pad
+    x_pad = np.pad(x, ((0,0),(0,0), (pad,pad), (pad,pad)), mode='constant') #constant = 0 by default
+
+    #intitialize output
+    out   = np.zeros((N,F,h_out,w_out), dtype=x.dtype)
+
+    #efficiency is not the goal here, use loops over all 4 dimensions
+    for i in range(N):
+      for j in range(F):
+        for k in range(h_out):
+          row_ind = k*stride #position of top left corner where filter will be placed
+          for l in range(w_out):
+            col_ind = l*stride #position of top left corner where filter will be placed
+
+            out[i,j,k,l] = np.sum(x_pad[i,:,row_ind:row_ind+HH,col_ind:col_ind+WW] * \
+                                  w[j,:,:,:])
+
+    out += b.reshape(1,F,1,1)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -649,8 +686,58 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    #simply grab anything that could be useful in this naive implementation
+    x, w, b, conv_param = cache
+    pad         = conv_param['pad'] 
+    stride      = conv_param['stride']    
 
+    N,F,H,W     = x.shape
+    F,C,HH,WW   = w.shape
+    dx          = np.zeros_like(x)
+
+    x_pad = np.pad(x, ((0,0),(0,0), (pad,pad), (pad,pad)), mode='constant') #constant = 0 by default
+    _,_,h_pad,w_pad = x_pad.shape
+
+    #using same notation for shape of forward convolution output
+    _,_,h_out,w_out = dout.shape
+
+    #for each spatial location i,j in 'x', figure out which activations it influences
+    #then multiply the gradient at those activations with the perturbation induced by change at i,j
+    for i in range(H):
+      i_pad = i+pad #corresponding index in padded array
+
+      #find out which activations are influenced by this position i_pad in x_pad
+
+      #min index of activation that is impacted by i,j
+      k_min = max(int(np.ceil(i_pad - (HH-1))/stride),0) #depending on size of filter and padding, this could be negative. Those filters are not included in forward pass though
+      k_max = min(int(np.floor(i_pad/stride)), h_out-1)  #h_out-1 in python notation is the last filter activation coordinate that can be impacted
+
+      for j in range(W):
+        j_pad = j+pad #corresponding index in padded array
+
+        #find out which activations are influenced by this position j_pad in x_pad
+        l_min = max(int(np.ceil(j_pad - (WW-1))/stride),0) #depending on size of filter and padding, this could be negative. Those filters are not included in forward pass though
+        l_max = min(int(np.floor(j_pad/stride)), w_out-1)  #w_out-1 in python notation is the last filter activation coordinate that can be impacted
+
+        #get d_out_{k,l} / dx_{i,j} for all k,l where non-zero, 
+        #and multiply by gradient of those k,l locations in activations
+        for k in range(k_min,k_max+1):
+          #get indices of top-left corner of filter on x_pad
+          row_ind = k*stride #position of top left corner where filter will be placed
+
+          for l in range(l_min,l_max+1):  
+            col_ind = l*stride #position of top left corner where filter will be placed
+
+            filt_row = i_pad - row_ind
+            filt_col = j_pad - col_ind
+
+            for c in range(C):
+              for f in range(F):
+                dx[:,c,i,j] += w[f,c,filt_row, filt_col]*dout[:,f,k,l]
+
+    dw = np.zeros_like(w)
+    db = np.sum(dout,axis=(0,2,3))
+    
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #

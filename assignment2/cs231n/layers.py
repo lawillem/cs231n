@@ -709,14 +709,14 @@ def conv_backward_naive(dout, cache):
       #find out which activations are influenced by this position i_pad in x_pad
 
       #min index of activation that is impacted by i,j
-      k_min = max(int(np.ceil(i_pad - (HH-1))/stride),0) #depending on size of filter and padding, this could be negative. Those filters are not included in forward pass though
+      k_min = max(int(np.ceil((i_pad - (HH-1))/stride)),0) #depending on size of filter and padding, this could be negative. Those filters are not included in forward pass though
       k_max = min(int(np.floor(i_pad/stride)), h_out-1)  #h_out-1 in python notation is the last filter activation coordinate that can be impacted
 
       for j in range(W):
         j_pad = j+pad #corresponding index in padded array
 
         #find out which activations are influenced by this position j_pad in x_pad
-        l_min = max(int(np.ceil(j_pad - (WW-1))/stride),0) #depending on size of filter and padding, this could be negative. Those filters are not included in forward pass though
+        l_min = max(int(np.ceil((j_pad - (WW-1))/stride)),0) #depending on size of filter and padding, this could be negative. Those filters are not included in forward pass though
         l_max = min(int(np.floor(j_pad/stride)), w_out-1)  #w_out-1 in python notation is the last filter activation coordinate that can be impacted
 
         #get d_out_{k,l} / dx_{i,j} for all k,l where non-zero, 

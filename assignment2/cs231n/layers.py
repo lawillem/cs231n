@@ -701,6 +701,10 @@ def conv_backward_naive(dout, cache):
     #using same notation for shape of forward convolution output
     _,_,h_out,w_out = dout.shape
 
+    #################################
+    ### NAIVE GRADIENT FOR X      ###
+    #################################
+
     #for each spatial location i,j in 'x', figure out which activations it influences
     #then multiply the gradient at those activations with the perturbation induced by change at i,j
     for i in range(H):
@@ -735,7 +739,35 @@ def conv_backward_naive(dout, cache):
               for f in range(F):
                 dx[:,c,i,j] += w[f,c,filt_row, filt_col]*dout[:,f,k,l]
 
+    #################################
+    ### END NAIVE GRADIENT FOR X  ###
+    #################################
+
+    #################################
+    ### NAIVE GRADIENT FOR W      ###
+    #################################
     dw = np.zeros_like(w)
+
+    #determine how much does each output activation changes by a chance in w
+    #then multiply that by how much the loss function changes by a change in activation (i.e. incoming grad dout)
+
+    #move the filter around in the same way that we did during the forward pass of convolution
+    for i in range(N):
+      for j in range(F):
+        for k in range(h_out):
+          row_ind = k*stride #position of top left corner where filter will be placed
+          for l in range(w_out):
+            col_ind = l*stride #position of top left corner where filter will be placed
+
+            #for each k,l, a change in any filter coefficient will impact the same activation
+            dw[j,:,:,:] += x_pad[i,:,row_ind:row_ind+HH,col_ind:col_ind+WW] * dout[i,j,k,l]
+
+
+    #################################
+    ### END NAIVE GRADIENT FOR X  ###
+    #################################
+
+    #Gradient for b (nice and simple)
     db = np.sum(dout,axis=(0,2,3))
     
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****

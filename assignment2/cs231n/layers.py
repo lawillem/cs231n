@@ -803,7 +803,22 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N,C,H,W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width  = pool_param['pool_width']
+    stride      = pool_param['stride']
+
+    nh = int(1 + (H - pool_height) / stride)
+    nw = int(1 + (W - pool_width)  / stride)
+
+    out = np.zeros((N,C,nh,nw))
+
+    for i in range(N):
+      for j in range(C):
+        for k in range(nh):
+          for l in range(nw):
+
+            out[i,j,k,l] = np.max(x[i,j,k*stride:k*stride+pool_height,l*stride:l*stride+pool_width])
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -829,7 +844,32 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x = cache[0]
+    pool_param = cache[1]
+
+    N,C,H,W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width  = pool_param['pool_width']
+    stride      = pool_param['stride']
+
+    _,_,nh,nw = dout.shape
+    dx = np.zeros_like(x)
+
+    #go over all the patches that we pooled over
+    #find the max index in each patch, that will be the only nonzero gradient in dx
+    for i in range(N):
+      for j in range(C):
+        for k in range(nh):
+          for l in range(nw):
+            #index of 1D version of patch where the maximum was found
+            maxind = np.argmax(x[i,j,k*stride:k*stride+pool_height,l*stride:l*stride+pool_width])
+
+            max_rel_k = int(np.floor(maxind / pool_height))
+            max_rel_l = maxind % pool_width
+
+            #if patch moves with stride less than width/heigth, than same entry can appear in more than one patch
+            #we want to make sure to add gradient, not simply assign to cover that (probably rare) case
+            dx[i,j,k*stride+max_rel_k, l*stride+max_rel_l] += dout[i,j,k,l]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

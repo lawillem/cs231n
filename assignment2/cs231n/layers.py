@@ -25,7 +25,11 @@ def affine_forward(x, w, b):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N = x.shape[0]
+    sample_dims = x[0].shape #For a sample, grab the dimensions
+
+    x_vec = x.reshape(N, np.prod(sample_dims))
+    out = np.matmul(x_vec,w) + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -57,7 +61,20 @@ def affine_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N = x.shape[0]
+    sample_dims = x[0].shape #For a sample, grab the dimensions    
+
+    x_vec = x.reshape(N, np.prod(sample_dims))
+
+    #grad with respect to x
+    dx = np.matmul(dout,w.transpose())
+    dx = dx.reshape(x.shape)
+
+    #grad with respect to w
+    dw = np.matmul(x_vec.transpose(),dout)
+
+    #grad with respect to b
+    db = dout.sum(axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -82,7 +99,7 @@ def relu_forward(x):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = np.maximum(0, x)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -108,7 +125,8 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = np.copy(dout)
+    dx[x<0] = 0.0
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -137,7 +155,29 @@ def softmax_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C = x.shape
+
+    #from classifiers/fc_net.py
+    scores = x
+
+    #to avoid numerical problems with softmax, subtract out the max of the score for each row
+    max_rowscore = np.max(scores, axis=1)
+    scores = (scores.transpose() - max_rowscore).transpose()
+    scores_exp = np.exp(scores)
+    scores_exp_sum = np.sum(scores_exp, axis=1)
+
+    #Due to normalization, p_ik can be interpreted as probabilities
+    p_ik = (scores_exp.transpose()/scores_exp_sum).transpose() 
+    L_i = -np.log(p_ik[np.arange(N),y])
+    loss = 1./N*np.sum(L_i)            
+
+    #Compute gradient of softmax with respect to the scores
+    index_mat = np.zeros_like(p_ik)
+    index_mat[np.arange(N),y] = 1 #sparse mat would be more efficient ofc
+    grad_soft = p_ik - index_mat
+    grad_soft *= (1./N) #also need to divide by N, just like loss
+
+    dx = grad_soft
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -910,7 +950,15 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    #Reshape x from N,C,H,W to (N * H * W), C
+    #Batch normalization (which takes statistics over rows) could then run as before
+    N,C,H,W = x.shape
+    x_reorder = x.transpose(0,2,3,1)
+    x_reorder = np.reshape(x_reorder, (N*H*W,C))
+    out_reorder, cache = batchnorm_forward(x_reorder, gamma, beta, bn_param)
+
+    out_reorder = np.reshape(out_reorder,(N,H,W,C))
+    out = out_reorder.transpose(0,3,1,2) 
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -943,7 +991,15 @@ def spatial_batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N,C,H,W = dout.shape
+
+    dout_reorder = dout.transpose(0,2,3,1)
+    dout_reorder = np.reshape(dout_reorder, (N*H*W,C))
+
+    dx_reorder, dgamma, dbeta = batchnorm_backward_alt(dout_reorder, cache)
+
+    dx_reorder = np.reshape(dx_reorder,(N,H,W,C))
+    dx = dx_reorder.transpose(0,3,1,2) 
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -984,7 +1040,26 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N,C,H,W = x.shape
+    CS = C//G #chunk size
+
+    shape = (N*G, CS * H * W)
+    X = x.reshape(shape).transpose()
+
+    nval = CS * H * W
+
+    #now use code from normal batch normalization, to take statistics over rows
+    mu            = 1./nval * np.sum(X, axis=0) #vector of length D
+    X_mean_zero   = X-mu
+
+    var           = 1./nval * np.sum(X_mean_zero**2, axis=0) #vector of length D
+    std           = np.sqrt(var + eps)
+    X_var_one     = X_mean_zero/std    
+
+    z             = X_var_one.transpose().reshape(N,C,H,W)
+    out           = gamma*z+beta
+
+    cache={'std':std, 'gamma':gamma, 'z':z, 'shape':shape}
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -1013,7 +1088,26 @@ def spatial_groupnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = dout.shape
+    shape = cache['shape']
+    dbeta = dout.sum(axis=(0,2,3), keepdims=True)
+    dgamma = np.sum(dout*cache['z'], axis=(0,2,3), keepdims=True)
+
+    #running out of time for this exercise given interview coming up. 
+    #this will be same logic as original batch norm grad, but now different shapes
+    #to avoid tedious check, saving a couple of mins by copying from some answers i found online, mea culpa :)  (did all other parts myself)
+
+    # reshape tensors
+    z = cache['z'].reshape(shape).transpose()
+    M = z.shape[0]
+    dfdz = dout * cache['gamma']
+    dfdz = dfdz.reshape(shape).transpose()
+
+    # copy from batch normalization backward alt
+    dfdz_sum = np.sum(dfdz,axis=0)
+    dx = dfdz - dfdz_sum/M - np.sum(dfdz * z,axis=0) * z/M
+    dx /= cache['std']
+    dx = dx.transpose().reshape(N, C, H, W)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

@@ -28,7 +28,15 @@ def affine_relu_backward(dout, cache):
 
 # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-pass
+def affine_softmax(x,y,w,b):
+    N,C = x.shape
+
+    scores, fc_cache = affine_forward(x, w, b)
+    loss, dscores = softmax_loss(scores, y)
+
+    dx, dw, db = affine_backward(dscores, fc_cache)
+
+    return loss, scores, dx, dw, db
 
 # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

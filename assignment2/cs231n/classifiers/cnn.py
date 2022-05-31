@@ -63,7 +63,24 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        F = num_filters
+        C,H,W = input_dim
+
+        #w1, and b1 are used for the convolutional layer (one bias per filter)
+        #w2, w3, b2 and b3 are for affine layers (one bias per output dim)
+        
+        self.params['W1'] = weight_scale * np.random.randn(F,C,filter_size,filter_size)
+        self.params['b1'] = np.zeros(F)
+
+        if H%2 > 0 or W%2 > 0:
+          raise Exception("assuming input image with even number of pixels on both axes (would have to be more careful with pool if not the case)")
+
+        nrow_w2 = F*H*W // 4 #padding/stride chosen to preserve size, see comments above, then 2x2 pool reduces by 4
+        self.params['W2'] = weight_scale * np.random.randn(nrow_w2, hidden_dim)
+        self.params['b2'] = np.zeros(hidden_dim)
+
+        self.params['W3'] = weight_scale * np.random.randn(hidden_dim, num_classes)
+        self.params['b3'] = np.zeros(num_classes)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -102,7 +119,14 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #do conv-relu-pool
+        out_crp, cache_crp = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
+
+        #do affine-relu
+        out_ar, cache_ar = affine_relu_forward(out_crp, W2, b2)
+
+        #do affine-softmax and get its grads
+        loss_data, scores, dout_ar, gw3, gb3 = affine_softmax(out_ar,y,W3,b3)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -125,7 +149,34 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #init grads
+        grads = {}
+
+        grads['W3'] = gw3
+        grads['b3'] = gb3
+
+        #grads for affine-relu
+        dout_crp, grads['W2'], grads['b2'] = affine_relu_backward(dout_ar, cache_ar)
+
+        #grads for conv-relu pool
+        _, grads['W1'], grads['b1'] = conv_relu_pool_backward(dout_crp, cache_crp)        
+
+        #init loss with data loss, then deal with reg
+        loss = loss_data
+
+        #add reg to both loss and grads
+        reg = self.reg
+        loss += 0.5*reg*(np.sum(W3**2) + np.sum(b3**2))
+        loss += 0.5*reg*(np.sum(W2**2) + np.sum(b2**2))
+        loss += 0.5*reg*(np.sum(W1**2) + np.sum(b1**2))
+
+        grads['W3'] += reg*W3
+        grads['W2'] += reg*W2
+        grads['W1'] += reg*W1
+
+        grads['b3'] += reg*b3       
+        grads['b2'] += reg*b2
+        grads['b1'] += reg*b1
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

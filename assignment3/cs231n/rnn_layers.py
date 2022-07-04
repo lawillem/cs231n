@@ -153,7 +153,17 @@ def rnn_forward(x, h0, Wx, Wh, b):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N,T,D = x.shape
+    
+    cache = [] #List of cache for each timestep
+
+    prev_h = h0
+    (_,H) = prev_h.shape
+    h = np.zeros((N,T,H))
+    for t in range(T):
+      h[:,t,:], cache_t = rnn_step_forward(x[:,t,:], prev_h, Wx, Wh, b) 
+      prev_h = h[:,t,:] #update prev_h for next iter
+      cache.append(cache_t)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -188,7 +198,38 @@ def rnn_backward(dh, cache):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    (N,T,H) = dh.shape
+    dh_t = np.zeros((N,H)) #at the end of the chain, the gradient is just the loss gradient (which we add each iter of the loop)
+    (x0, Wx0, Wh0, prev_h0, next_h0) = cache[0] #need to have access to one cache set to learn what 'D' is
+    (D,_) = Wx0.shape
+
+    dx  = np.zeros((N,T,D))
+    dWx = np.zeros((D,H))
+    dWh = np.zeros((H,H))
+    db  = np.zeros((H,))
+
+    #dh[:,:,:] = 0
+
+    for t in reversed(range(T)):
+      cache_t = cache[t]
+
+      #rnn_step_backward gives the gradient by moving back one step along the chain of hidden state updates
+      #When transitioning between timesteps, there is a branch point where the hidden state is also used for the loss function of that timestep
+      #This adds a gradient from the loss at each timestep, provided by dh
+      dh_t += dh[:,t,:]
+
+      #move back along hidden state chain
+      dx_t, dh_t, dWx_t, dWh_t, db_t = rnn_step_backward(dh_t, cache_t) #get the gradient contribution by going back one hidden state
+
+      #Process grads for this timestep
+      dWx += dWx_t
+      dWh += dWh_t
+      db  += db_t
+
+      dx[:,t,:] = dx_t
+
+    #We are now at the start of the chain
+    dh0 = dh_t
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################

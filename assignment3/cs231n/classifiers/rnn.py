@@ -148,7 +148,46 @@ class CaptioningRNN:
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        ########################
+        # LOSS 
+        ########################
+
+        #(1)
+        h_init, cache_proj = affine_forward(features, W_proj, b_proj)
+
+        #(2)
+        captions_in_vecs, cache_embed = word_embedding_forward(captions_in, W_embed)
+
+        #(3)
+        if self.cell_type == "rnn":
+          h, cache_rnn = rnn_forward(captions_in_vecs, h_init, Wx, Wh, b)
+        else: 
+          raise Exception("Still need to implement %s"%self.cell_type)
+
+        #(4)
+        scores, cache_temp_affine = temporal_affine_forward(h, W_vocab, b_vocab)
+
+        #(5)
+        loss, dscore = temporal_softmax_loss(scores, captions_out, mask, verbose=False)
+
+        ########################
+        # GRADS
+        ########################
+        
+        #(4)
+        dh, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dscore, cache_temp_affine)
+
+        #(3)
+        if self.cell_type == "rnn":
+          dcaptions_in_vecs, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dh, cache_rnn)
+        else: 
+          raise Exception("Still need to implement %s"%self.cell_type)        
+
+        #(2)
+        grads['W_embed'] = word_embedding_backward(dcaptions_in_vecs, cache_embed)
+
+        #(1)
+        dfeatures, grads['W_proj'], grads['b_proj'] = affine_backward(dh0, cache_proj)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -216,7 +255,43 @@ class CaptioningRNN:
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #(0)
+        h_init, _ = affine_forward(features, W_proj, b_proj)
+
+        h_prev    = h_init 
+        word_prev = self._start * np.ones((N,1), dtype=np.int32) 
+        
+        #continue_mask tracks which captions did not yet finish
+        continue_mask = np.ones(N)
+
+        for t in range(max_length):
+          #(1)
+          caption_in_vec, _ = word_embedding_forward(word_prev, W_embed)
+
+          #(2)
+          h_next, _ = rnn_step_forward(caption_in_vec.reshape(N,-1), h_prev, Wx, Wh, b)
+          
+          #(3)
+          score, _ = temporal_affine_forward(h_next.reshape(N,1,-1), W_vocab, b_vocab)
+          score = score[:,0,:]
+
+          #(4)
+          best_word = np.argmax(score, axis=1) #vector of length N
+
+          ######
+          #wrap up this timestep
+          ######
+
+          #see which words finished this iter, 
+          words_finished_this_iter = best_word == self._end
+          continue_mask *= np.invert(words_finished_this_iter) #some entries in mask will get zerod out, will no longer write in this and next iters
+
+
+          captions[:,t] = best_word * continue_mask
+          h_prev = h_next
+          word_prev = best_word.reshape(N,1)
+
+          
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

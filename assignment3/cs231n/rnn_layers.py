@@ -262,7 +262,15 @@ def word_embedding_forward(x, W):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    #get shapes
+    N,T = x.shape
+    V,D = W.shape
+
+    #store cache for backward pass
+    cache = {'x':x, 'W':W}
+
+    #actual operation in one line, grab rows from W (i.e. word vectors) corresponding to indices provided by x
+    out = W[x.flatten()].reshape(N,T,D)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -295,8 +303,19 @@ def word_embedding_backward(dout, cache):
     # HINT: Look up the function np.add.at                                       #
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    
+    #get cache
+    x = cache['x']
+    W = cache['W']
 
-    pass
+    #get shapes
+    N,T = x.shape
+    V,D = W.shape
+
+    dW = np.zeros_like(W)
+
+    #indexing dW with flattened X will give something of shape (N*T, D), same as reshaped dout
+    np.add.at(dW, x.flatten(), dout.reshape(-1,D))
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################

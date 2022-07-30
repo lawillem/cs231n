@@ -165,7 +165,45 @@ class MultiHeadAttention(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        #The image features are transformed from N x D (D = PCA components of FC layer 7) to N x wordvec_dim (using visual_projection matrix in CaptioningTransformer).
+        #The multihead attention (not self!) takes k and v from this transformed image info
+        #I guess I should shape the key and value from (N, wordvec_dim) to (N, 1, wordvec_dim) before passing to the current forward() function
+        #In that case T would be 1
+        #wordvec_dim = E in this setup
+
+        H = self.n_head
+
+        #Could reduce number of lines significantly by concatenating operations
+        #Want to split out for clarity.
+
+        #Do I need to add bias? First try without, see if it passes the test
+        #Below, the last dimension is still E, but first E//H belong to head 1, second E//H to head 2, ...
+        Q = self.query(query)   #(N,S,E) = (N,num_query,E)
+        K = self.key(key)       #(N,T,E) = (N,num_key  ,E)
+        V = self.value(value)   #(N,T,E) = (N,num_val  ,E)
+
+        #split across heads
+        Q_mh = Q.view(N,S,H,E//H)
+        K_mh = K.view(N,T,H,E//H)
+        V_mh = V.view(N,T,H,E//H)
+
+        #within each head, want to have 'e' matrix of size S, T (where T is probably only ever 1 when image PCA value are fed)
+        Q_mh_p = Q_mh.permute(0,2,1,3) #(N,H,S,E//H)
+        K_mh_p = K_mh.permute(0,2,1,3) #(N,H,T,E//H)
+        V_mh_p = V_mh.permute(0,2,1,3) #(N,H,T,E//H)
+
+        e_mh_p = Q_mh_p.matmul(K_mh_p.transpose(3,2))/((E//H)**0.5) #(N,H,S,T)
+
+        if attn_mask is not None:
+          e_mh_p = e_mh_p.masked_fill(attn_mask == 0, -float('inf'))
+
+        #Softmax over the number of keys T, giving attention vector
+        a_mh_p = torch.softmax(e_mh_p, dim=-1) #(N,H,S,T)
+
+        #using definition in assignment. Use attention weights (after dropout) to grab corresponding values with dimension E//H for each head
+        Y_mh_p = self.attn_drop(a_mh_p).matmul(V_mh_p) #(N,H,S,E//H) = (N,H,num_query,E//H)
+        Y_concat = Y_mh_p.transpose(1,2).reshape(N,S,E)
+        output = self.proj(Y_concat)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

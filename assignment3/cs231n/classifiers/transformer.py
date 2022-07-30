@@ -178,7 +178,7 @@ class TransformerDecoderLayer(nn.Module):
 
         Inputs:
         - tgt: the sequence to the decoder layer, of shape (N, T, W)
-        - memory: the sequence from the last layer of the encoder, of shape (N, S, D)
+        - memory: the sequence from the last layer of the encoder, of shape (N, S, D) #edit Bram, I think this is misleading. We will use visual_projection of CaptioningTransformer to convert image feature length D to wordvec_dim T, so that MultiHeadAttention always gets input of same last dimension as query/key/val
         - tgt_mask: the parts of the target sequence to mask, of shape (T, T)
 
         Returns:

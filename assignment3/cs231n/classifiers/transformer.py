@@ -90,7 +90,40 @@ class CaptioningTransformer(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        ###############
+        #1
+        ###############
+
+        #captions are already turned into integers before calling this function, which is why word_to_idx is not saved in the constructor
+
+        #embed (each integer index will grab corresponding word vector)
+        captions_embed = self.embedding(captions)                 #(N,T,W)
+
+        #add positional encodings to word vectors (do only once at start of encoder)
+        captions_embed = self.positional_encoding(captions_embed) #(N,T,W)
+
+        #project image features into same dimensions
+        features_trans = self.visual_projection(features)         #(N,W)
+        features_trans = torch.unsqueeze(features_trans, dim=1)   #(N,1,W)
+
+        ###############
+        #2
+        ###############
+
+        #I think this will just have to deal with padding required for masked self attention
+        #Padding entries in input caption (the NULL token at self._null) should not contribute to the loss funtion, 
+        #which in CaptioningRNN (cs231/classifiers/rnn.py) does not contribute to loss through the way it is masked out in temporal_softmax_loss() function 
+        
+        #I therefore think that we will compute scores for all input tokens (even wasteful operations for NULL)
+        #But in the loss function we should create a mask and not sum those scores into loss
+        
+        #EDIT: This is indeed already done in captioning_solver_transformer -> _step(). 
+        #Anything where output caption is <NULL> (probably therefore also for input <END> I guess because that will have output caption <NULL>)
+        #it sets those losses to zero. That should cause zero updates to weights
+
+        ###############
+        #3
+        ###############
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -178,7 +211,7 @@ class TransformerDecoderLayer(nn.Module):
 
         Inputs:
         - tgt: the sequence to the decoder layer, of shape (N, T, W)
-        - memory: the sequence from the last layer of the encoder, of shape (N, S, D) #edit Bram, I think this is misleading. We will use visual_projection of CaptioningTransformer to convert image feature length D to wordvec_dim T, so that MultiHeadAttention always gets input of same last dimension as query/key/val
+        - memory: the sequence from the last layer of the encoder, of shape (N, S, D) #edit Bram, I think S = 1 here because for each input 0, 1, ..., N-1 we have PCA FC-layer weights 0, ..., D-1, which we have already converted to 0, 1, ..., W-1 through visual_projection in CaptioningTransformer
         - tgt_mask: the parts of the target sequence to mask, of shape (T, T)
 
         Returns:

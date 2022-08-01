@@ -38,7 +38,14 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        half_embdim_mask = torch.arange(embed_dim//2).expand(max_len,embed_dim//2)    #make 2D array
+        pos_arr = torch.arange(max_len).expand(embed_dim//2, max_len).transpose(0,1)  #make 2D array
+
+        #even dims
+        pe[0,pos_arr,2*half_embdim_mask]   = torch.sin(pos_arr*10000**(-2*half_embdim_mask/embed_dim) )
+
+        #odd dims
+        pe[0,pos_arr,2*half_embdim_mask+1] = torch.cos(pos_arr*10000**(-2*half_embdim_mask/embed_dim) )
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -70,7 +77,7 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        output = self.dropout(x + self.pe[:,:S,:])
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -176,7 +183,7 @@ class MultiHeadAttention(nn.Module):
         #Could reduce number of lines significantly by concatenating operations
         #Want to split out for clarity.
 
-        #Do I need to add bias? First try without, see if it passes the test
+        #Do I need to add bias? Answer: yes, by calling the nn.Linear objects the weight matrix AND bias are automatically applied
         #Below, the last dimension is still E, but first E//H belong to head 1, second E//H to head 2, ...
         Q = self.query(query)   #(N,S,E) = (N,num_query,E)
         K = self.key(key)       #(N,T,E) = (N,num_key  ,E)
@@ -203,7 +210,7 @@ class MultiHeadAttention(nn.Module):
         #using definition in assignment. Use attention weights (after dropout) to grab corresponding values with dimension E//H for each head
         Y_mh_p = self.attn_drop(a_mh_p).matmul(V_mh_p) #(N,H,S,E//H) = (N,H,num_query,E//H)
         Y_concat = Y_mh_p.transpose(1,2).reshape(N,S,E)
-        output = self.proj(Y_concat)
+        output = self.proj(Y_concat) #For a given input from N and query from S, we let the different dimensions of Y_concat 'communicate' with each other through a dense layer
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

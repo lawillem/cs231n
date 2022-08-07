@@ -121,9 +121,15 @@ class CaptioningTransformer(nn.Module):
         #Anything where output caption is <NULL> (probably therefore also for input <END> I guess because that will have output caption <NULL>)
         #it sets those losses to zero. That should cause zero updates to weights
 
+        tgt_mask = torch.ones(T,T)
+        tgt_mask = torch.tril(tgt_mask) #for row 0 (i.e. input query 0), everything except col 0 is masked out with 0. For row 1, only col 0 and 1 are 1, rest zero
+
         ###############
         #3
         ###############
+
+        transformer_decoder_out = self.transformer(captions_embed, features_trans, tgt_mask=tgt_mask) #(N,T,W)
+        scores = self.output(transformer_decoder_out) #(N, T, V)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

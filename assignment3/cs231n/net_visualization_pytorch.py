@@ -89,7 +89,38 @@ def make_fooling_image(X, target_y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    iter_max = 1000
+
+    for i in range(iter_max):
+      #get scores
+      scores = model(X_fooling)
+
+      #check if target score is highest, in this case we managed to fool and can stop!
+      max_score, max_index = scores.max(1)
+
+      print("Highest score: %e, Target score: %e"%(max_score,scores[0,target_y]))
+
+      if max_index == target_y:
+        print("fooled in iter %i"%i)
+        break
+      
+      #we did not fool yet, get gradient with respect to fooling class
+      score_target = scores[0,target_y]
+      score_target.backward()
+
+      #normalize gradient, then compute dX using suggested style above
+      img_grad_norm = X_fooling.grad / X_fooling.grad.norm(2)
+
+      #Move in positive gradient direction
+      dX = learning_rate * img_grad_norm
+
+      #don't backpropagate through update
+      with torch.no_grad(): 
+        X_fooling += dX
+        X_fooling.grad.zero_()
+
+    
+    #get gradient of image with respect to target score
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -107,7 +138,28 @@ def class_visualization_update_step(img, model, target_y, l2_reg, learning_rate)
     ########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    img.grad = None
+
+    #get scores
+    scores = model(img)
+
+    #get score gradient and reg gradient
+    img_score_target = scores[0,target_y]
+    reg_score = l2_reg * torch.sum(img**2)
+
+    #form objective function from two components
+    obj = img_score_target - reg_score
+
+    obj.backward()
+
+    img_grad = img.grad
+
+    #Move in positive gradient direction, want to maximize objective defined above
+    dX = learning_rate * img_grad
+
+    #don't backpropagate through update
+    with torch.no_grad(): 
+      img += dX
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ########################################################################

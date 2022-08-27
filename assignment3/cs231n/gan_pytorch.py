@@ -30,7 +30,7 @@ def sample_noise(batch_size, dim, seed=None):
 
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    return 2*(torch.rand(batch_size, dim)-0.5)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -51,7 +51,17 @@ def discriminator(seed=None):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    model = nn.Sequential(
+      Flatten(),
+      nn.Linear(784,256),
+      nn.LeakyReLU(0.01),
+      nn.Linear(256,256),
+      nn.LeakyReLU(0.01),
+      nn.Linear(256,1), 
+    )
+
+    #A sigmoid will be applied to these scores in bce_loss() before applying binary cross-entropy loss -> BCEWithLogitsLoss. 
+    #That sigmoid will make the generator actually give probabilities [0,1]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -76,7 +86,14 @@ def generator(noise_dim=NOISE_DIM, seed=None):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    model = nn.Sequential(
+      nn.Linear(noise_dim,1024),
+      nn.ReLU(),
+      nn.Linear(1024,1024),
+      nn.ReLU(),
+      nn.Linear(1024,784),
+      nn.Tanh()
+    )
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -112,7 +129,28 @@ def discriminator_loss(logits_real, logits_fake):
     loss = None
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    ############ MY INITIAL ATTEMPT, FEEDING SINGLE SET OF TARGET AND SCORES ########
+    # THIS SEEMS TO WORK OK, EXCEPT THE RESULT IS EXACTLY HALF OF WHAT IT SHOULD BE #
+    # THE WAY I GET THE RESULT THE EXERCISE EXPECTS IS BY CALLING FUNCTION
+    # SEPARATELY FOR REAL AND FAKE. WE ARE ADDING TWO AVERAGES NOW, WHICH CAUSES
+    # A RESULT THAT IS TWICE AS LARGE. I THINK MY ORIGINAL APPROACH MAKES MORE SENSE...
+    ##################################################################################
+
+    #real_size = logits_real.size()
+    #fake_size = logits_fake.size()
+    
+    #real_target = torch.ones(real_size).type(dtype)
+    #fake_target = torch.zeros(fake_size).type(dtype)
+
+    #target = torch.cat((real_target, fake_target)).squeeze()
+    #scores = torch.cat((logits_real, logits_fake)).squeeze()
+
+    #loss = bce_loss(scores, target)
+
+    #######################
+    N = logits_real.shape[0] #assuming real and fake have the same N
+    loss = bce_loss(logits_real, torch.ones(N).type(dtype)) + bce_loss(logits_fake, torch.zeros(N).type(dtype))    
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     return loss
@@ -129,8 +167,8 @@ def generator_loss(logits_fake):
     """
     loss = None
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    N = logits_fake.shape[0]
+    loss = bce_loss(logits_fake, torch.ones(N).type(dtype))
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     return loss
@@ -149,7 +187,7 @@ def get_optimizer(model):
     optimizer = None
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.5, 0.999))
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     return optimizer
@@ -168,7 +206,7 @@ def ls_discriminator_loss(scores_real, scores_fake):
     loss = None
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    loss = 0.5*torch.mean((scores_real-1)**2) + 0.5*torch.mean(scores_fake**2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     return loss
@@ -186,7 +224,7 @@ def ls_generator_loss(scores_fake):
     loss = None
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    loss = 0.5*torch.mean((scores_fake-1)**2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     return loss
@@ -204,8 +242,20 @@ def build_dc_classifier(batch_size):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    model = nn.Sequential(
+      nn.Conv2d(1,  32, 5), #no padding apparently in this exercise
+      nn.LeakyReLU(0.01),
+      nn.MaxPool2d((2, 2)),
+      nn.Conv2d(32, 64, 5), #no padding apparently in this exercise
+      nn.LeakyReLU(0.01),
+      nn.MaxPool2d((2, 2)),
+      Flatten(),
+      nn.Linear(1024,1024),
+      nn.LeakyReLU(0.01),
+      nn.Linear(1024,1),
+    )
 
+    return model  
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
     #                               END OF YOUR CODE                             #
@@ -225,7 +275,23 @@ def build_dc_generator(noise_dim=NOISE_DIM):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    model = nn.Sequential(
+      nn.Linear(noise_dim,1024),
+      nn.ReLU(),
+      nn.BatchNorm1d(1024),
+      nn.Linear(1024,7*7*128),
+      nn.ReLU(),
+      nn.BatchNorm1d(7*7*128),
+      Unflatten(N=-1, C=128, H=7, W=7),
+      nn.ConvTranspose2d(128, 64, 4, 2, 1),
+      nn.ReLU(),
+      nn.BatchNorm2d(64),
+      nn.ConvTranspose2d(64, 1, 4, 2, 1),
+      nn.Tanh(),
+      Flatten(),
+    )    
+
+    return model
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
